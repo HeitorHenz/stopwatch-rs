@@ -4,7 +4,8 @@ use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Flex, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, List, ListItem, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, List, ListItem, Paragraph, Wrap},
 };
 
 use crate::app::App;
@@ -14,22 +15,34 @@ use crate::stopwatch::State;
 pub fn draw(frame: &mut Frame, app: &App, now: Instant) {
     let area = frame.area();
 
-    if area.width < 20 || area.height < 6 {
+    const HELP: &str = "space: pause  l: lap  r: reset  q: quit";
+
+    let [main_area, help_area] =
+        Layout::vertical([Constraint::Min(0), Constraint::Length(2)]).areas(area);
+
+    if main_area.width < 20 || main_area.height < 9 {
         frame.render_widget(
             Paragraph::new("Terminal size is too small. Please resize.")
-                .alignment(Alignment::Center),
-            area,
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true }),
+            main_area,
         );
         return;
     }
 
-    let [status_area, timer_area, laps_area, help_area] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Min(3),
-        Constraint::Min(3),
-        Constraint::Length(1),
-    ])
-    .areas(area);
+    frame.render_widget(
+        Paragraph::new(HELP)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(Style::default().fg(Color::DarkGray)),
+        help_area,
+    );
+
+    let [stopwatch_area, laps_area] =
+        Layout::vertical([Constraint::Ratio(2, 3), Constraint::Ratio(1, 3)]).areas(main_area);
+
+    let [status_area, timer_area] =
+        Layout::vertical([Constraint::Length(1), Constraint::Min(3)]).areas(stopwatch_area);
 
     let (status, color) = match app.state() {
         State::Running => ("RUNNING", Color::Green),
@@ -83,21 +96,18 @@ pub fn draw(frame: &mut Frame, app: &App, now: Instant) {
 
     if app.laps().is_empty() {
         frame.render_widget(
-            Paragraph::new("Press l to record a lap")
-                .alignment(Alignment::Center)
-                .block(laps_block),
+            Paragraph::new(Line::from(Span::styled(
+                "Press l to record a lap",
+                Style::default().fg(Color::DarkGray),
+            )))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .block(laps_block),
             laps_area,
         );
     } else {
         frame.render_widget(List::new(items).block(laps_block), laps_area);
     }
-
-    frame.render_widget(
-        Paragraph::new("space: start/pause    l: lap    r: reset    q: quit")
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::DarkGray)),
-        help_area,
-    );
 }
 
 fn format_duration(elapsed: Duration, precision: Precision) -> String {
